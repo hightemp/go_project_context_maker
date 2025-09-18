@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 BINARY ?= gpcm
-PKG := ./cmd/gpcm
+PKG := main.go
 CONFIG ?= config.yaml
 
 .PHONY: all build tidy fmt test clean run init generate
