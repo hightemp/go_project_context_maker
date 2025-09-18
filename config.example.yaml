@@ -1,0 +1,16 @@
+documents:
+  - description: "Project structure overview"
+    outputPath: project-structure.md
+    sources:
+      - type: tree
+        sourcePaths:
+          - src
+          - migrations
+          - templates
+        filePattern: "*.php,*.twig"
+      - type: file
+        sourcePaths:
+          - src
+          - migrations
+          - templates
+        filePattern: "*.php,*.twig"
