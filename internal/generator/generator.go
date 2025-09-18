@@ -79,12 +79,28 @@ func Generate(c cfg.Config, projectRoot string) error {
 	return nil
 }
 
+// collectFiles now supports glob patterns inside sourcePaths entries.
+// Examples:
+//   - "src", "migrations", "templates" (literal dirs)
+//   - "/abs/path/to/src"
+//   - "app/*/templates" (glob, non-recursive)
+//
+// Note: Go's filepath.Glob does not support ** (recursive glob) nor {a,b} brace expansion.
 func collectFiles(root string, dirs []string, patternCSV string) ([]string, error) {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve root: %w", err)
+	}
+
 	patterns := splitPatterns(patternCSV)
 	seen := make(map[string]struct{})
 
-	for _, d := range dirs {
-		start := filepath.Join(root, d)
+	starts, err := expandSourceStarts(rootAbs, dirs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, start := range starts {
 		info, err := os.Stat(start)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -94,13 +110,14 @@ func collectFiles(root string, dirs []string, patternCSV string) ([]string, erro
 			return nil, fmt.Errorf("stat %s: %w", start, err)
 		}
 		if !info.IsDir() {
-			// if it's a file, optional: include if matches
-			if matchAny(patterns, filepath.Base(d)) || len(patterns) == 0 {
-				rel, err := filepath.Rel(root, start)
+			// if it's a file, include if matches
+			name := filepath.Base(start)
+			if len(patterns) == 0 || matchAny(patterns, name) {
+				rel, err := filepath.Rel(rootAbs, start)
 				if err != nil {
 					return nil, err
 				}
-				seen[rel] = struct{}{}
+				seen[filepath.ToSlash(rel)] = struct{}{}
 			}
 			continue
 		}
@@ -114,12 +131,12 @@ func collectFiles(root string, dirs []string, patternCSV string) ([]string, erro
 			}
 			name := de.Name()
 			if len(patterns) == 0 || matchAny(patterns, name) {
-				rel, err := filepath.Rel(root, path)
+				rel, err := filepath.Rel(rootAbs, path)
 				if err != nil {
 					return err
 				}
-				// Normalize to OS-specific separators already returned by Rel
-				seen[rel] = struct{}{}
+				// normalize to slashes to keep tree stable across OSes
+				seen[filepath.ToSlash(rel)] = struct{}{}
 			}
 			return nil
 		})
@@ -155,6 +172,37 @@ func matchAny(patterns []string, name string) bool {
 		}
 	}
 	return false
+}
+
+func hasGlob(p string) bool {
+	// minimal check for glob meta characters supported by filepath.Glob
+	return strings.ContainsAny(p, "*?[")
+}
+
+func expandSourceStarts(rootAbs string, dirs []string) ([]string, error) {
+	var out []string
+	for _, d := range dirs {
+		pat := d
+		if !filepath.IsAbs(pat) {
+			pat = filepath.Join(rootAbs, d)
+		}
+		if hasGlob(pat) {
+			matches, err := filepath.Glob(pat)
+			if err != nil {
+				return nil, fmt.Errorf("glob %s: %w", pat, err)
+			}
+			if len(matches) == 0 {
+				// no matches for this pattern; skip silently
+				continue
+			}
+			for _, m := range matches {
+				out = append(out, filepath.Clean(m))
+			}
+			continue
+		}
+		out = append(out, filepath.Clean(pat))
+	}
+	return out, nil
 }
 
 type tnode struct {
