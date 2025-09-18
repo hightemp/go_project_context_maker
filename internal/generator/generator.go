@@ -219,6 +219,11 @@ func hasGlob(p string) bool {
 func expandSourceStarts(rootAbs string, dirs []string) ([]string, error) {
 	var out []string
 	for _, d := range dirs {
+		if strings.TrimSpace(d) == "*" {
+			out = append(out, filepath.Clean(rootAbs))
+			continue
+		}
+
 		pat := d
 		if !filepath.IsAbs(pat) {
 			pat = filepath.Join(rootAbs, d)

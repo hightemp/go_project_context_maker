@@ -9,8 +9,6 @@ import (
 )
 
 type Config struct {
-	// ProjectPath — корневая директория проекта, относительно которой выполняется поиск.
-	// Если пусто, используется ".".
 	ProjectPath string `yaml:"projectPath"`
 
 	Documents []Document `yaml:"documents"`
