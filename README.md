@@ -18,6 +18,7 @@ Small Go CLI to generate llm context markdown file with files contents.
 
 Minimal example matching the requested behavior:
 ```yaml
+projectPath: "."
 documents:
   - description: "Project structure overview"
     outputPath: project-structure.md
@@ -28,10 +29,18 @@ documents:
           - migrations
           - templates
         filePattern: "*.php,*.twig"
+        excludePaths:
+          - vendor
+          - node_modules
+          - .git        
       - type: file
         sourcePaths:
           - src
           - migrations
           - templates
         filePattern: "*.php,*.twig"
+        excludePaths:
+          - vendor
+          - node_modules
+          - .git        
 ```

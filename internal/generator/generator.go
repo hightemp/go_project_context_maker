@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,7 +22,7 @@ func Generate(c cfg.Config, projectRoot string) error {
 		}
 
 		for _, src := range doc.Sources {
-			files, err := collectFiles(projectRoot, src.SourcePaths, src.FilePattern)
+			files, err := collectFiles(projectRoot, src.SourcePaths, src.FilePattern, src.ExcludePaths)
 			if err != nil {
 				return fmt.Errorf("collect files for %q: %w", src.Type, err)
 			}
@@ -86,13 +87,14 @@ func Generate(c cfg.Config, projectRoot string) error {
 //   - "app/*/templates" (glob, non-recursive)
 //
 // Note: Go's filepath.Glob does not support ** (recursive glob) nor {a,b} brace expansion.
-func collectFiles(root string, dirs []string, patternCSV string) ([]string, error) {
+func collectFiles(root string, dirs []string, patternCSV string, excludes []string) ([]string, error) {
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
 		return nil, fmt.Errorf("resolve root: %w", err)
 	}
 
 	patterns := splitPatterns(patternCSV)
+	exclude := normPatterns(excludes)
 	seen := make(map[string]struct{})
 
 	starts, err := expandSourceStarts(rootAbs, dirs)
@@ -110,14 +112,18 @@ func collectFiles(root string, dirs []string, patternCSV string) ([]string, erro
 			return nil, fmt.Errorf("stat %s: %w", start, err)
 		}
 		if !info.IsDir() {
-			// if it's a file, include if matches
+			// if it's a file, include if matches and not excluded
+			rel, err := filepath.Rel(rootAbs, start)
+			if err != nil {
+				return nil, err
+			}
+			relSlash := filepath.ToSlash(rel)
+			if matchPathAny(exclude, relSlash) {
+				continue
+			}
 			name := filepath.Base(start)
 			if len(patterns) == 0 || matchAny(patterns, name) {
-				rel, err := filepath.Rel(rootAbs, start)
-				if err != nil {
-					return nil, err
-				}
-				seen[filepath.ToSlash(rel)] = struct{}{}
+				seen[relSlash] = struct{}{}
 			}
 			continue
 		}
@@ -126,17 +132,26 @@ func collectFiles(root string, dirs []string, patternCSV string) ([]string, erro
 			if walkErr != nil {
 				return walkErr
 			}
+			rel, err := filepath.Rel(rootAbs, path)
+			if err != nil {
+				return err
+			}
+			relSlash := filepath.ToSlash(rel)
 			if de.IsDir() {
+				// skip excluded directories
+				if relSlash != "." && matchPathAny(exclude, relSlash) {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			// skip excluded files
+			if matchPathAny(exclude, relSlash) {
 				return nil
 			}
 			name := de.Name()
 			if len(patterns) == 0 || matchAny(patterns, name) {
-				rel, err := filepath.Rel(rootAbs, path)
-				if err != nil {
-					return err
-				}
 				// normalize to slashes to keep tree stable across OSes
-				seen[filepath.ToSlash(rel)] = struct{}{}
+				seen[relSlash] = struct{}{}
 			}
 			return nil
 		})
@@ -168,6 +183,28 @@ func splitPatterns(csv string) []string {
 func matchAny(patterns []string, name string) bool {
 	for _, p := range patterns {
 		if ok, _ := filepath.Match(p, name); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// normPatterns trims and normalizes exclude patterns to use forward slashes.
+func normPatterns(ps []string) []string {
+	out := make([]string, 0, len(ps))
+	for _, p := range ps {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, filepath.ToSlash(p))
+		}
+	}
+	return out
+}
+
+// matchPathAny checks rel path (with forward slashes) against patterns using POSIX-style matching.
+func matchPathAny(patterns []string, relSlash string) bool {
+	for _, p := range patterns {
+		if ok, _ := path.Match(p, relSlash); ok {
 			return true
 		}
 	}

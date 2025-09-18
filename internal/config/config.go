@@ -9,6 +9,10 @@ import (
 )
 
 type Config struct {
+	// ProjectPath — корневая директория проекта, относительно которой выполняется поиск.
+	// Если пусто, используется ".".
+	ProjectPath string `yaml:"projectPath"`
+
 	Documents []Document `yaml:"documents"`
 }
 
@@ -19,28 +23,32 @@ type Document struct {
 }
 
 type Source struct {
-	Type        string   `yaml:"type"`        // "tree" or "file"
-	SourcePaths []string `yaml:"sourcePaths"` // directories to scan
-	FilePattern string   `yaml:"filePattern"` // comma-separated globs, e.g. "*.php,*.twig"
+	Type         string   `yaml:"type"`         // "tree" or "file"
+	SourcePaths  []string `yaml:"sourcePaths"`  // directories to scan
+	ExcludePaths []string `yaml:"excludePaths"` // path globs (relative to project root) to exclude; supports simple * and ? globs
+	FilePattern  string   `yaml:"filePattern"`  // comma-separated globs for file names, e.g. "*.php,*.twig"
 }
 
 // Default returns the default configuration matching the task description.
 func Default() Config {
 	return Config{
+		ProjectPath: ".",
 		Documents: []Document{
 			{
 				Description: "Project structure overview",
 				OutputPath:  "project-structure.md",
 				Sources: []Source{
 					{
-						Type:        "tree",
-						SourcePaths: []string{"src", "migrations", "templates"},
-						FilePattern: "*.php,*.twig",
+						Type:         "tree",
+						SourcePaths:  []string{"src", "migrations", "templates"},
+						FilePattern:  "*.php,*.twig",
+						ExcludePaths: []string{"vendor", "node_modules", ".git"},
 					},
 					{
-						Type:        "file",
-						SourcePaths: []string{"src", "migrations", "templates"},
-						FilePattern: "*.php,*.twig",
+						Type:         "file",
+						SourcePaths:  []string{"src", "migrations", "templates"},
+						FilePattern:  "*.php,*.twig",
+						ExcludePaths: []string{"vendor", "node_modules", ".git"},
 					},
 				},
 			},

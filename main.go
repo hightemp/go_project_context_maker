@@ -81,7 +81,11 @@ func runGenerate(path string) error {
 		return err
 	}
 
-	if err := generator.Generate(conf, "."); err != nil {
+	root := conf.ProjectPath
+	if root == "" {
+		root = "."
+	}
+	if err := generator.Generate(conf, root); err != nil {
 		return err
 	}
 
