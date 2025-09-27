@@ -44,3 +44,9 @@ documents:
           - node_modules
           - .git        
 ```
+
+### Licence
+
+MIT
+
+![](https://asdertasd.site/counter/go_project_context_maker)
