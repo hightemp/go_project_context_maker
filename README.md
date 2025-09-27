@@ -45,7 +45,7 @@ documents:
           - .git        
 ```
 
-### Licence
+### License
 
 MIT
 
