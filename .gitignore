@@ -1,3 +1,5 @@
+config.*.yaml
+!config.example.yaml
 config.yaml
 gpcm
-project-structure.md
+*project-structure.md
